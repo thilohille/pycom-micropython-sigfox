@@ -113,6 +113,11 @@ wlan_obj_t wlan_obj = {
 //
 //STATIC const mp_irq_methods_t wlan_irq_methods;
 
+typedef struct _wlan_if_obj_t {
+    mp_obj_base_t base;
+    int if_id;
+} wlan_if_obj_t;
+
 static EventGroupHandle_t wifi_event_group;
 
 
@@ -185,6 +190,13 @@ void wlan_setup (int32_t mode, const char *ssid, uint32_t auth, const char *key,
     wlan_set_mode(mode);
 
     if (mode != WIFI_MODE_STA) {
+        const char* dns_server = "192.168.4.1" ;
+        tcpip_adapter_dns_info_t dns_info;
+        int v = ipaddr_aton(dns_server, &dns_info.ip) ;
+        ESP_ERROR_CHECK(tcpip_adapter_set_dns_info(
+            TCPIP_ADAPTER_IF_AP,
+            TCPIP_ADAPTER_DNS_MAIN,
+        &dns_info));        
         wlan_setup_ap (ssid, auth, key, channel, add_mac, hidden);
     }
 
@@ -902,12 +914,49 @@ STATIC mp_obj_t wlan_disconnect(mp_obj_t self_in) {
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(wlan_disconnect_obj, wlan_disconnect);
 
 STATIC mp_obj_t wlan_isconnected(mp_obj_t self_in) {
-    if (xEventGroupGetBits(wifi_event_group) & CONNECTED_BIT) {
-        return mp_const_true;
-    }
-    return mp_const_false;
-}
+    wlan_if_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (self->if_id == WIFI_IF_STA) {
+        tcpip_adapter_ip_info_t info;
+        tcpip_adapter_get_ip_info(WIFI_IF_STA, &info);
+        return mp_obj_new_bool(info.ip.addr != 0);
+    } else {
+        wifi_sta_list_t sta;
+        esp_wifi_ap_get_sta_list(&sta);
+        return mp_obj_new_bool(sta.num != 0);
+}}
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(wlan_isconnected_obj, wlan_isconnected);
+
+STATIC mp_obj_t wlan_status(size_t n_args, const mp_obj_t *args) {
+    if (n_args == 1) {
+        // no arguments: return None until link status is implemented
+        return mp_const_none;
+    }
+
+    // one argument: return status based on query parameter
+    switch ((uintptr_t)args[1]) {
+        case (uintptr_t)MP_OBJ_NEW_QSTR(MP_QSTR_stations): {
+            // return list of connected stations, only if in soft-AP mode
+            mp_obj_t list = mp_obj_new_list(0, NULL);
+            if (args[0] != WIFI_IF_STA){
+                wifi_sta_list_t station_list;
+                ESP_ERROR_CHECK(esp_wifi_ap_get_sta_list(&station_list));
+                wifi_sta_info_t *stations = (wifi_sta_info_t*)station_list.sta;
+                for (int i = 0; i < station_list.num; ++i) {
+                    mp_obj_tuple_t *t = mp_obj_new_tuple(1, NULL);
+                    t->items[0] = mp_obj_new_bytes(stations[i].mac, sizeof(stations[i].mac));
+                    mp_obj_list_append(list, t);
+                }
+            }
+            return list;
+        }
+
+        default:
+            mp_raise_ValueError("unknown status param");
+    }
+
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(wlan_status_obj, 1, 2, wlan_status);
 
 STATIC mp_obj_t wlan_ifconfig (mp_uint_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     STATIC const mp_arg_t wlan_ifconfig_args[] = {
@@ -1140,6 +1189,7 @@ STATIC const mp_map_elem_t wlan_locals_dict_table[] = {
     { MP_OBJ_NEW_QSTR(MP_QSTR_connect),             (mp_obj_t)&wlan_connect_obj },
     { MP_OBJ_NEW_QSTR(MP_QSTR_disconnect),          (mp_obj_t)&wlan_disconnect_obj },
     { MP_OBJ_NEW_QSTR(MP_QSTR_isconnected),         (mp_obj_t)&wlan_isconnected_obj },
+    { MP_OBJ_NEW_QSTR(MP_QSTR_status),              (mp_obj_t)&wlan_status_obj },
     { MP_OBJ_NEW_QSTR(MP_QSTR_ifconfig),            (mp_obj_t)&wlan_ifconfig_obj },
     { MP_OBJ_NEW_QSTR(MP_QSTR_mode),                (mp_obj_t)&wlan_mode_obj },
     { MP_OBJ_NEW_QSTR(MP_QSTR_ssid),                (mp_obj_t)&wlan_ssid_obj },
