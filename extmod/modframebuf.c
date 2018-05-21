@@ -463,10 +463,16 @@ STATIC mp_obj_t framebuf_text(size_t n_args, const mp_obj_t *args) {
     mp_int_t x0 = mp_obj_get_int(args[2]);
     mp_int_t y0 = mp_obj_get_int(args[3]);
     mp_int_t col = 1;
+    mp_int_t fontsize = 1;
     if (n_args >= 5) {
         col = mp_obj_get_int(args[4]);
     }
+    if (n_args >= 6) {
+        fontsize = mp_obj_get_int(args[5]);
+    }
 
+    int xr = 0;
+    int yr = 0;
     // loop over chars
     for (; *str; ++str) {
         // get char and make sure its in range of font
@@ -483,7 +489,9 @@ STATIC mp_obj_t framebuf_text(size_t n_args, const mp_obj_t *args) {
                 for (int y = y0; vline_data; vline_data >>= 1, y++) { // scan over vertical column
                     if (vline_data & 1) { // only draw if pixel set
                         if (0 <= y && y < self->height) { // clip y
-                            setpixel(self, x0, y, col);
+                            xr = x0 * fontsize;
+                            yr = y * fontsize;
+                            fill_rect(self, xr, yr, fontsize, fontsize, col);
                         }
                     }
                 }
@@ -492,7 +500,8 @@ STATIC mp_obj_t framebuf_text(size_t n_args, const mp_obj_t *args) {
     }
     return mp_const_none;
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(framebuf_text_obj, 4, 5, framebuf_text);
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(framebuf_text_obj, 4, 6, framebuf_text);
+
 
 STATIC const mp_rom_map_elem_t framebuf_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_fill), MP_ROM_PTR(&framebuf_fill_obj) },
