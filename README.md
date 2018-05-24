@@ -1,3 +1,24 @@
+Some changes to the official pycom-micropython tree.
+- framebuffer: support for different fontsize. By adding a parameter to framebuf_text which is basically a multiplier to the pixelsize.
+Example:
+fb.text("Text to display", x, y, color, fontsize)
+Tested only on LoPy4 using framebuf.MVLSB
+
+Support for FRAMEBUF_MHLSB and FRAMEBUF_MHMSB
+
+- wlan status in AP-mode.
+https://github.com/micropython/micropython/commit/478ce8f7e3136214f7050965b5ce64bcdabe0bd3.
+The method returns a list of tuples representing the connected stations.
+The first element of the tuple is the MAC address of the station.
+>>> import binascii
+>>> from network import WLAN
+>>> wlan = WLAN()
+>>> wlan.init(mode=WLAN.AP, ssid="SOME_SSID", auth=(WLAN.WPA2, "SOME_PASSWORD"), channel=6, antenna=WLAN.INT_ANT)
+>>> wlan.status("stations") 
+Tested only on LoPy4
+
+
+
 The MicroPython project
 =======================
 <p align="center">
